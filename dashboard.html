@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SO-101 Balance</title>
+<style>
+  :root {
+    --bg: #0e0e0e; --bg-card: #1a1a1a; --bg-card-2: #222;
+    --tx: #e8e8e4; --tx-2: #999; --tx-3: #666;
+    --accent: #3987e5; --green: #1baf7a; --red: #e34948; --amber: #eda100;
+    --border: rgba(255,255,255,0.08); --radius: 8px;
+    --mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--tx); font-family: var(--sans); font-size: 14px; padding: 24px; min-height: 100vh; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .header h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.3px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .timer { font-family: var(--mono); font-size: 13px; color: var(--tx-2); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .pill-idle { background: rgba(27,175,122,0.15); color: var(--green); }
+  .pill-firing { background: rgba(227,73,72,0.15); color: var(--red); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric { background: var(--bg-card); border-radius: var(--radius); padding: 14px 16px; }
+  .metric-label { font-size: 11px; color: var(--tx-3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-value { font-size: 20px; font-weight: 500; font-family: var(--mono); }
+  .metric-unit { font-size: 11px; color: var(--tx-3); margin-left: 2px; }
+
+  .tilt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .tilt-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .tilt-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  .tilt-title { font-size: 13px; color: var(--tx-2); }
+  .tilt-value { font-size: 32px; font-weight: 500; font-family: var(--mono); letter-spacing: -1px; }
+  .tilt-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; font-size: 12px; }
+  .tilt-sub-label { color: var(--tx-3); margin-bottom: 2px; }
+  .tilt-sub-val { font-family: var(--mono); color: var(--tx-2); }
+  .bar-track { height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.15s ease-out; }
+  .bar-label { font-size: 11px; color: var(--tx-3); margin-bottom: 4px; }
+
+  .joints { margin-bottom: 20px; }
+  .joints-title { font-size: 13px; color: var(--tx-2); margin-bottom: 12px; }
+  .joint-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .joint-row:last-child { border-bottom: none; }
+  .joint-name { font-size: 12px; color: var(--tx-2); width: 120px; flex-shrink: 0; font-family: var(--mono); }
+  .joint-bar-wrap { flex: 1; height: 3px; background: var(--bg); border-radius: 2px; position: relative; }
+  .joint-bar { height: 100%; border-radius: 2px; position: absolute; transition: width 0.15s, left 0.15s; }
+  .joint-tick { position: absolute; top: -3px; width: 1px; height: 9px; background: var(--tx-3); left: 50%; }
+  .joint-val { font-size: 12px; font-family: var(--mono); color: var(--tx); width: 65px; text-align: right; flex-shrink: 0; }
+  .joint-delta { font-size: 11px; font-family: var(--mono); width: 60px; text-align: right; flex-shrink: 0; }
+
+  .pd-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .pd-card { background: var(--bg-card); border-radius: var(--radius); padding: 16px; }
+  .pd-title { font-size: 13px; color: var(--tx-2); margin-bottom: 10px; }
+  .pd-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+  .pd-label { color: var(--tx-3); }
+  .pd-val { font-family: var(--mono); }
+
+  .log { background: var(--bg-card); border-radius: var(--radius); padding: 16px; }
+  .log-title { font-size: 13px; color: var(--tx-2); margin-bottom: 10px; }
+  .log-entry { font-size: 11px; font-family: var(--mono); color: var(--tx-2); padding: 5px 0; border-bottom: 1px solid var(--border); line-height: 1.7; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-ts { color: var(--tx-3); }
+  .log-dom { color: var(--accent); }
+  .log-empty { font-size: 12px; color: var(--tx-3); font-style: italic; }
+
+  .conn-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+  .disconnected { text-align: center; padding: 60px; color: var(--tx-3); font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="disconnected" id="disconnected">Connecting to controller...</div>
+</div>
+
+<script>
+const JOINT_NAMES = ['shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll'];
+
+function fmt(v, d) { return (v >= 0 ? '+' : '') + v.toFixed(d); }
+
+function buildUI() {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <h1>SO-101 ball balance</h1>
+      <div class="header-right">
+        <span class="timer" id="timer">00:00.00</span>
+        <span class="pill pill-idle" id="status-pill">
+          <span class="dot" id="status-dot"></span>
+          <span id="status-text">Idle</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Loop rate</div>
+        <div class="metric-value" id="m-hz">--<span class="metric-unit">Hz</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">IMU</div>
+        <div class="metric-value" id="m-imu" style="font-size:13px;">--</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Kp / Kd</div>
+        <div class="metric-value" id="m-gains" style="font-size:16px;">-- / --</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Deadband</div>
+        <div class="metric-value" id="m-db">--<span class="metric-unit">deg</span></div>
+      </div>
+    </div>
+
+    <div class="tilt-grid">
+      <div class="tilt-card">
+        <div class="tilt-top">
+          <span class="tilt-title">Roll (left / right)</span>
+          <span class="tilt-value" id="roll-err">--</span>
+        </div>
+        <div class="tilt-sub">
+          <div><div class="tilt-sub-label">Filtered</div><div class="tilt-sub-val" id="roll-filt">--</div></div>
+          <div><div class="tilt-sub-label">Offset</div><div class="tilt-sub-val" id="roll-off">--</div></div>
+        </div>
+        <div class="bar-label">Deadband proximity</div>
+        <div class="bar-track"><div class="bar-fill" id="roll-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="tilt-card">
+        <div class="tilt-top">
+          <span class="tilt-title">Pitch (forward / back)</span>
+          <span class="tilt-value" id="pitch-err">--</span>
+        </div>
+        <div class="tilt-sub">
+          <div><div class="tilt-sub-label">Filtered</div><div class="tilt-sub-val" id="pitch-filt">--</div></div>
+          <div><div class="tilt-sub-label">Offset</div><div class="tilt-sub-val" id="pitch-off">--</div></div>
+        </div>
+        <div class="bar-label">Deadband proximity</div>
+        <div class="bar-track"><div class="bar-fill" id="pitch-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+    </div>
+
+    <div class="pd-section">
+      <div class="pd-card">
+        <div class="pd-title">Controller output</div>
+        <div class="pd-row"><span class="pd-label">cp (pitch cmd)</span><span class="pd-val" id="pd-cp">--</span></div>
+        <div class="pd-row"><span class="pd-label">cr (roll cmd)</span><span class="pd-val" id="pd-cr">--</span></div>
+      </div>
+      <div class="pd-card">
+        <div class="pd-title">Raw IMU</div>
+        <div class="pd-row"><span class="pd-label">Accel (mg)</span><span class="pd-val" id="raw-acc">--</span></div>
+        <div class="pd-row"><span class="pd-label">Gyro (mdps)</span><span class="pd-val" id="raw-gyr">--</span></div>
+      </div>
+    </div>
+
+    <div class="joints">
+      <div class="joints-title">Joint targets</div>
+      <div id="joints-container"></div>
+    </div>
+
+    <div class="log">
+      <div class="log-title">Event log</div>
+      <div id="log-container"><div class="log-empty">No events yet</div></div>
+    </div>
+  `;
+
+  const jc = document.getElementById('joints-container');
+  JOINT_NAMES.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'joint-row';
+    row.id = 'j-' + name;
+    row.innerHTML = `
+      <span class="joint-name">${name}</span>
+      <div class="joint-bar-wrap">
+        <div class="joint-tick"></div>
+        <div class="joint-bar" id="jbar-${name}" style="background:var(--accent)"></div>
+      </div>
+      <span class="joint-val" id="jval-${name}">--</span>
+      <span class="joint-delta" id="jdel-${name}">--</span>
+    `;
+    jc.appendChild(row);
+  });
+}
+
+function setColor(el, val, threshold) {
+  const abs = Math.abs(val);
+  if (abs < threshold * 0.5) el.style.color = 'var(--green)';
+  else if (abs < threshold) el.style.color = 'var(--tx)';
+  else if (abs < threshold * 3) el.style.color = 'var(--amber)';
+  else el.style.color = 'var(--red)';
+}
+
+function updateDashboard(d) {
+  const elapsed = d.elapsed || 0;
+  const mm = Math.floor(elapsed / 60);
+  const ss = (elapsed % 60).toFixed(2);
+  document.getElementById('timer').textContent =
+    String(mm).padStart(2,'0') + ':' + ss.padStart(5,'0');
+
+  const pill = document.getElementById('status-pill');
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if (d.in_deadband) {
+    pill.className = 'pill pill-idle';
+    dot.style.background = 'var(--green)';
+    txt.textContent = 'Idle';
+  } else {
+    pill.className = 'pill pill-firing';
+    dot.style.background = 'var(--red)';
+    txt.textContent = 'Firing';
+  }
+
+  document.getElementById('m-hz').innerHTML = d.loop_hz.toFixed(1) + '<span class="metric-unit">Hz</span>';
+  const imuEl = document.getElementById('m-imu');
+  if (d.imu_alive) {
+    imuEl.innerHTML = '<span class="conn-dot" style="background:var(--green)"></span>Connected';
+    imuEl.style.color = 'var(--green)';
+  } else {
+    imuEl.innerHTML = '<span class="conn-dot" style="background:var(--red)"></span>Stale';
+    imuEl.style.color = 'var(--red)';
+  }
+  document.getElementById('m-gains').textContent = d.kp.toFixed(1) + ' / ' + d.kd.toFixed(1);
+  document.getElementById('m-db').innerHTML = d.deadband_deg.toFixed(1) + '<span class="metric-unit">deg</span>';
+
+  const rollErr = document.getElementById('roll-err');
+  const pitchErr = document.getElementById('pitch-err');
+  rollErr.textContent = fmt(d.roll_err_deg, 2) + '\u00b0';
+  pitchErr.textContent = fmt(d.pitch_err_deg, 2) + '\u00b0';
+  setColor(rollErr, d.roll_err_deg, d.deadband_deg);
+  setColor(pitchErr, d.pitch_err_deg, d.deadband_deg);
+
+  document.getElementById('roll-filt').textContent = fmt(d.roll_deg, 2) + '\u00b0';
+  document.getElementById('roll-off').textContent = fmt(d.roll_offset_deg, 2) + '\u00b0';
+  document.getElementById('pitch-filt').textContent = fmt(d.pitch_deg, 2) + '\u00b0';
+  document.getElementById('pitch-off').textContent = fmt(d.pitch_offset_deg, 2) + '\u00b0';
+
+  const rollBar = document.getElementById('roll-bar');
+  const pitchBar = document.getElementById('pitch-bar');
+  const rollPct = Math.min(Math.abs(d.roll_err_deg) / d.deadband_deg * 50, 100);
+  const pitchPct = Math.min(Math.abs(d.pitch_err_deg) / d.deadband_deg * 50, 100);
+  rollBar.style.width = rollPct + '%';
+  pitchBar.style.width = pitchPct + '%';
+  rollBar.style.background = Math.abs(d.roll_err_deg) >= d.deadband_deg ? 'var(--red)' : 'var(--green)';
+  pitchBar.style.background = Math.abs(d.pitch_err_deg) >= d.deadband_deg ? 'var(--red)' : 'var(--green)';
+
+  document.getElementById('pd-cp').textContent = fmt(d.cp, 4) + ' rad/s';
+  document.getElementById('pd-cr').textContent = fmt(d.cr, 4) + ' rad/s';
+
+  document.getElementById('raw-acc').textContent =
+    d.ax_mg.toFixed(0) + ', ' + d.ay_mg.toFixed(0) + ', ' + d.az_mg.toFixed(0);
+  document.getElementById('raw-gyr').textContent =
+    d.gx_mdps.toFixed(0) + ', ' + d.gy_mdps.toFixed(0) + ', ' + d.gz_mdps.toFixed(0);
+
+  JOINT_NAMES.forEach((name, i) => {
+    const target = d.q_target_deg[i];
+    const nominal = d.q_nominal_deg[i];
+    const lim = d.joint_limits_deg[i];
+    const delta = target - nominal;
+    const range = lim[1] - lim[0];
+    const pct = ((target - lim[0]) / range) * 100;
+    const nomPct = ((nominal - lim[0]) / range) * 100;
+    const left = Math.min(pct, nomPct);
+    const width = Math.max(Math.abs(pct - nomPct), 0.3);
+
+    const bar = document.getElementById('jbar-' + name);
+    bar.style.left = left + '%';
+    bar.style.width = width + '%';
+    bar.style.background = Math.abs(delta) > 5 ? 'var(--red)' :
+                           Math.abs(delta) > 1 ? 'var(--amber)' : 'var(--accent)';
+
+    document.getElementById('jval-' + name).textContent = fmt(target, 2) + '\u00b0';
+    const delEl = document.getElementById('jdel-' + name);
+    delEl.textContent = fmt(delta, 2) + '\u00b0';
+    delEl.style.color = Math.abs(delta) < 0.1 ? 'var(--tx-3)' : 'var(--tx-2)';
+  });
+
+  const lc = document.getElementById('log-container');
+  if (!d.fire_log || d.fire_log.length === 0) {
+    lc.innerHTML = '<div class="log-empty">No events yet</div>';
+  } else {
+    lc.innerHTML = '';
+    d.fire_log.slice().reverse().forEach(e => {
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      const dqStr = e.dq.map(v => fmt(v, 3)).join('  ');
+      div.innerHTML = `<span class="log-ts">[${e.ts}]</span> roll=${fmt(e.roll_err_deg, 1)}\u00b0 pitch=${fmt(e.pitch_err_deg, 1)}\u00b0 <span class="log-dom">${e.dominant}</span> (${fmt(e.dom_val, 4)} rad/s)`;
+      lc.appendChild(div);
+    });
+  }
+}
+
+let built = false;
+let fails = 0;
+
+async function poll() {
+  try {
+    const r = await fetch('/data');
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    if (!built) { buildUI(); built = true; }
+    updateDashboard(d);
+    fails = 0;
+  } catch(e) {
+    fails++;
+    if (fails > 20 && built) {
+      document.getElementById('app').innerHTML =
+        '<div class="disconnected">Controller disconnected</div>';
+      built = false;
+    }
+  }
+}
+
+setInterval(poll, 100);
+poll();
+</script>
+</body>
+</html>
